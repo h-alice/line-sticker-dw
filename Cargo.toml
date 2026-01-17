@@ -1,0 +1,23 @@
+[package]
+name = "line-sticker-dw"
+version = "0.1.0"
+edition = "2024"
+
+[profile.release]
+lto = true
+strip = true
+opt-level = "z"
+panic = "abort"
+
+[dependencies]
+anyhow = "1.0.100"
+async-compat = "0.2.5"
+futures-lite = "2.6.1"
+reqwest = "0.13.1"
+scraper = "0.25.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.149"
+smol = { version = "2.0" }
+thiserror = "2.0.17"
+tracing = "0.1.44"
+tracing-subscriber = "0.3.22"
