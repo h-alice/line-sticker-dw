@@ -96,6 +96,15 @@ pub fn sticker_page_url(id: u64) -> String {
     format!("https://store.line.me/stickershop/product/{}", id)
 }
 
+/// Parses the stickers from the sticker page
+///
+/// # Arguments
+///
+/// * `html` - The HTML content of the sticker page
+///
+/// # Returns
+///
+/// The sticker entries (in `StickerPreview`) of the sticker page
 pub fn parse_stickers(html: &str) -> Result<Vec<StickerPreview>, StickerError> {
     let document = Html::parse_document(html);
     let selector = Selector::parse(r#".FnStickerPreviewItem"#)
