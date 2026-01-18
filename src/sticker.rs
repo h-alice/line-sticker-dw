@@ -1,4 +1,5 @@
-use crate::line_url_maker::sticker_page_url;
+use std::path::PathBuf;
+
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 
@@ -8,10 +9,14 @@ pub enum StickerError {
     Http(#[from] reqwest::Error),
     #[error("No stickers found")]
     NoStickersFound,
+    #[error("Invalid sticker")]
+    InvalidSticker,
     #[error("Parse error: {0}")]
     ParseError(String),
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("FileSystem error: {0}")]
+    FileSystem(#[from] std::io::Error),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,6 +30,53 @@ pub struct StickerPreview {
     pub animation_url: String,
     pub popup_url: String,
     pub sound_url: String,
+}
+
+impl StickerPreview {
+    /// Determine if the sticker has a static image
+    ///
+    /// "Static image" is the default sticker type of LINE stickers,
+    /// just a plain PNG file.
+    ///
+    /// In general, "every" sticker would have a static image, even if
+    /// it is an animated sticker.
+    pub fn has_static(&self) -> bool {
+        !self.static_url.is_empty()
+    }
+
+    /// Determine if the sticker has an animation
+    ///
+    /// So far (2026), the animated sticker uses APNG format. It may looks
+    /// like a PNG, but much bigger, and it will be truncated to normal PNG
+    /// if upload to some platform like Discord, so take care!
+    pub fn has_animation(&self) -> bool {
+        !self.animation_url.is_empty()
+    }
+
+    /// Determine if the sticker has a fallback static image
+    pub fn has_fallback_static(&self) -> bool {
+        !self.fallback_static_url.is_empty()
+    }
+
+    /// Determine if the sticker has a sound
+    ///
+    /// NOTE: Not tried yet! Any recommendation for sound stickers?
+    pub fn has_sound(&self) -> bool {
+        !self.sound_url.is_empty()
+    }
+}
+
+/// Returns the URL of the sticker page of given id
+///
+/// # Arguments
+///
+/// * `id` - The id of the sticker "set" (not sticker itself!)
+///
+/// # Returns
+///
+/// The URL of the sticker page
+pub fn sticker_page_url(id: u64) -> String {
+    format!("https://store.line.me/stickershop/product/{}", id)
 }
 
 pub fn parse_stickers(html: &str) -> Result<Vec<StickerPreview>, StickerError> {
@@ -52,7 +104,43 @@ pub fn parse_stickers(html: &str) -> Result<Vec<StickerPreview>, StickerError> {
 pub async fn fetch_stickers(id: u64) -> Result<Vec<StickerPreview>, StickerError> {
     let response = reqwest::get(sticker_page_url(id)).await?;
     let text = response.text().await?;
-    parse_stickers(&text)
+    let parsed_stickers = parse_stickers(&text)?;
+    if parsed_stickers.is_empty() {
+        return Err(StickerError::NoStickersFound);
+    }
+    Ok(parsed_stickers)
+}
+
+/// Downloads the sticker image to the local filesystem.
+///
+/// The sticker image is selected based on availability in the following priority order:
+/// 1. Sound sticker
+/// 2. Animation sticker
+/// 3. Static sticker
+/// 4. Fallback static sticker PNG
+///
+/// ## Returns
+/// Returns the path to the downloaded sticker image.
+///
+/// The sticker image is saved as `sticker_<sticker id>.png`.
+pub async fn download_sticker_image(sticker: &StickerPreview) -> Result<PathBuf, StickerError> {
+    let url = if sticker.has_sound() {
+        &sticker.sound_url
+    } else if sticker.has_animation() {
+        &sticker.animation_url
+    } else if sticker.has_static() {
+        &sticker.static_url
+    } else if sticker.has_fallback_static() {
+        &sticker.fallback_static_url
+    } else {
+        return Err(StickerError::InvalidSticker);
+    };
+
+    let response = reqwest::get(url).await?;
+    let bytes = response.bytes().await?;
+    let filename = format!("sticker_{}.png", sticker.id);
+    std::fs::write(&filename, bytes)?;
+    Ok(PathBuf::from(filename))
 }
 
 #[cfg(test)]
@@ -78,5 +166,8 @@ mod tests {
             preview.static_url,
             "https://stickershop.line-scdn.net/stickershop/v1/sticker/655976027/android/sticker.png?v=1"
         );
+        assert!(preview.has_static());
+        assert!(!preview.has_animation());
+        assert!(preview.has_fallback_static());
     }
 }
