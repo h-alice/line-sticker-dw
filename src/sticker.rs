@@ -30,6 +30,12 @@ pub enum StickerError {
     FileSystem(#[from] std::io::Error),
 }
 
+/// A sticker entry
+///
+/// We follow the JSON structure of LINE sticker page.
+///
+/// It may change in the future, we cannot ensure future
+/// compatibility. (you can file an issue if it breaks)
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StickerPreview {
@@ -112,6 +118,15 @@ pub fn parse_stickers(html: &str) -> Result<Vec<StickerPreview>, StickerError> {
     Ok(stickers)
 }
 
+/// Fetches the stickers from the sticker page of given id
+///
+/// # Arguments
+///
+/// * `id` - The id of the sticker "set" (not sticker itself!)
+///
+/// # Returns
+///
+/// The stickers of the sticker page
 pub async fn fetch_stickers(id: u64) -> Result<Vec<StickerPreview>, StickerError> {
     let response = reqwest::get(sticker_page_url(id)).await?;
     let text = response.text().await?;
