@@ -154,11 +154,25 @@ pub async fn fetch_stickers(id: u64) -> Result<Vec<StickerPreview>, StickerError
 /// 3. Static sticker
 /// 4. Fallback static sticker PNG
 ///
+/// ## Arguments
+///
+/// * `sticker` - The sticker to download
+/// * `base` - The base directory to save the sticker image
+///
+/// The `base` directory is optional, if not provided, the sticker
+/// image will be saved to the current directory.
+///
 /// ## Returns
 /// Returns the path to the downloaded sticker image.
 ///
 /// The sticker image is saved as `sticker_<sticker id>.png`.
-pub async fn download_sticker_image(sticker: &StickerPreview) -> Result<PathBuf, StickerError> {
+pub async fn download_sticker_image(
+    sticker: &StickerPreview,
+    base: Option<PathBuf>,
+) -> Result<PathBuf, StickerError> {
+    // debug
+    println!("Downloading sticker {}", sticker.id);
+
     let url = if sticker.has_sound() {
         &sticker.sound_url
     } else if sticker.has_animation() {
@@ -173,9 +187,19 @@ pub async fn download_sticker_image(sticker: &StickerPreview) -> Result<PathBuf,
 
     let response = reqwest::get(url).await?;
     let bytes = response.bytes().await?;
+
+    let mut path = base.unwrap_or_default();
     let filename = format!("sticker_{}.png", sticker.id);
-    std::fs::write(&filename, bytes)?;
-    Ok(PathBuf::from(filename))
+    path.push(filename);
+
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+
+    std::fs::write(&path, bytes)?;
+    Ok(path)
 }
 
 #[cfg(test)]
