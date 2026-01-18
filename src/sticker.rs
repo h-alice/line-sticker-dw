@@ -5,16 +5,27 @@ use serde::{Deserialize, Serialize};
 
 #[derive(thiserror::Error, Debug)]
 pub enum StickerError {
+    // HTTP errors
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
+
+    // THe returned sticker page has no stickers
     #[error("No stickers found")]
     NoStickersFound,
+
+    // The sticker entry has no valid image URL
     #[error("Invalid sticker")]
     InvalidSticker,
+
+    // Parse error
     #[error("Parse error: {0}")]
     ParseError(String),
+
+    // JSON error, from `serde_json`
     #[error("JSON error: {0}")]
     Json(#[from] serde_json::Error),
+
+    // File system error
     #[error("FileSystem error: {0}")]
     FileSystem(#[from] std::io::Error),
 }
