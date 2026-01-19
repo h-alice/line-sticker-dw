@@ -190,7 +190,7 @@ pub async fn download_sticker_image(
     let response = reqwest::get(url).await?;
     let bytes = response.bytes().await?;
 
-    let mut path = base.unwrap_or_default();
+    let mut path = base.unwrap_or_default().clone();
     let filename = format!("sticker_{}.png", sticker.id);
     path.push(filename);
 
