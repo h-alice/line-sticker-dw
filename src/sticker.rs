@@ -175,9 +175,9 @@ pub async fn download_sticker_image(
 ) -> Result<PathBuf, StickerError> {
     debug!("downloading sticker {}", sticker.id);
 
-    let url = if sticker.has_sound() {
+    let url = /*if sticker.has_sound() { // We need more investigation
         &sticker.sound_url
-    } else if sticker.has_animation() {
+    } else */if sticker.has_animation() {
         &sticker.animation_url
     } else if sticker.has_static() {
         &sticker.static_url
