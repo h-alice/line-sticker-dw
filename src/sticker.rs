@@ -149,18 +149,32 @@ pub async fn fetch_stickers(id: u64) -> Result<Vec<StickerPreview>, StickerError
     Ok(parsed_stickers)
 }
 
-/// Downloads the sticker image to the local filesystem.
+/// Helper to download a file from a URL to a specific destination.
+async fn download_file(url: &str, dest: PathBuf) -> Result<(), StickerError> {
+    if let Some(parent) = dest.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    let response = reqwest::get(url).await?;
+    let bytes = response.bytes().await?;
+    std::fs::write(&dest, bytes)?;
+    Ok(())
+}
+
+/// Downloads the sticker image (and sound if it has one) to the local filesystem.
 ///
 /// The sticker image is selected based on availability in the following priority order:
-/// 1. Sound sticker
-/// 2. Animation sticker
-/// 3. Static sticker
-/// 4. Fallback static sticker PNG
+/// 1. Animation sticker
+/// 2. Static sticker
+/// 3. Fallback static sticker PNG
+///
+/// If the sticker has a sound, it will also be downloaded as a `.m4a` file.
 ///
 /// ## Arguments
 ///
 /// * `sticker` - The sticker to download
-/// * `base` - The base directory to save the sticker image
+/// * `base` - The base directory to save the sticker files
 ///
 /// The `base` directory is optional, if not provided, the sticker
 /// image will be saved to the current directory.
@@ -168,16 +182,15 @@ pub async fn fetch_stickers(id: u64) -> Result<Vec<StickerPreview>, StickerError
 /// ## Returns
 /// Returns the path to the downloaded sticker image.
 ///
-/// The sticker image is saved as `sticker_<sticker id>.png`.
+/// The sticker image is saved as `sticker_<sticker id>.png`. \
+/// The sound is saved as `sticker_<sticker id>.m4a` (if it has one).
 pub async fn download_sticker_image(
     sticker: &StickerPreview,
     base: Option<PathBuf>,
 ) -> Result<PathBuf, StickerError> {
     debug!("downloading sticker {}", sticker.id);
 
-    let url = /*if sticker.has_sound() { // We need more investigation
-        &sticker.sound_url
-    } else */if sticker.has_animation() {
+    let image_url = if sticker.has_animation() {
         &sticker.animation_url
     } else if sticker.has_static() {
         &sticker.static_url
@@ -187,22 +200,20 @@ pub async fn download_sticker_image(
         return Err(StickerError::InvalidSticker);
     };
 
-    let response = reqwest::get(url).await?;
-    let bytes = response.bytes().await?;
+    let base_dir = base.unwrap_or_default();
+    let image_path = base_dir.clone().join(format!("sticker_{}.png", sticker.id));
 
-    let mut path = base.unwrap_or_default().clone();
-    let filename = format!("sticker_{}.png", sticker.id);
-    path.push(filename);
+    // Download the image part
+    download_file(image_url, image_path.clone()).await?;
 
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
+    // Download the sound part if it has sound
+    if sticker.has_sound() {
+        let sound_path = base_dir.clone().join(format!("sticker_{}.m4a", sticker.id));
+        download_file(&sticker.sound_url, sound_path).await?;
     }
 
-    std::fs::write(&path, bytes)?;
-    debug!("Downloaded sticker {}", sticker.id);
-    Ok(path)
+    debug!("Downloaded sticker {}.", sticker.id);
+    Ok(image_path)
 }
 
 #[cfg(test)]
