@@ -2,6 +2,8 @@
 name = "line-sticker-dw"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+authors = ["Wayne Hong <admin@halice.art>"]
 
 [profile.release]
 lto = true
