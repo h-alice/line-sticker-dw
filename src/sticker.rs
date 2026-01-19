@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 #[derive(thiserror::Error, Debug)]
 pub enum StickerError {
@@ -137,8 +138,10 @@ pub fn parse_stickers(html: &str) -> Result<Vec<StickerPreview>, StickerError> {
 ///
 /// The stickers of the sticker page
 pub async fn fetch_stickers(id: u64) -> Result<Vec<StickerPreview>, StickerError> {
+    debug!("Downloading sticker store page for set {}", id);
     let response = reqwest::get(sticker_page_url(id)).await?;
     let text = response.text().await?;
+    debug!("Store page downloaded for set {}", id);
     let parsed_stickers = parse_stickers(&text)?;
     if parsed_stickers.is_empty() {
         return Err(StickerError::NoStickersFound);
@@ -170,8 +173,7 @@ pub async fn download_sticker_image(
     sticker: &StickerPreview,
     base: Option<PathBuf>,
 ) -> Result<PathBuf, StickerError> {
-    // debug
-    println!("Downloading sticker {}", sticker.id);
+    debug!("downloading sticker {}", sticker.id);
 
     let url = if sticker.has_sound() {
         &sticker.sound_url
@@ -199,6 +201,7 @@ pub async fn download_sticker_image(
     }
 
     std::fs::write(&path, bytes)?;
+    debug!("Downloaded sticker {}", sticker.id);
     Ok(path)
 }
 
