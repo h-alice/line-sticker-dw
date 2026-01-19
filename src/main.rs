@@ -1,8 +1,8 @@
 use async_compat::Compat;
 use futures::future::join_all;
 use std::path::PathBuf;
-use tracing::{Level, error, info};
-use tracing_subscriber::FmtSubscriber;
+use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 mod sticker;
 
@@ -76,11 +76,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verbose flag
     let verbose = args.contains(["-v", "--verbose"]);
-    let log_level = if verbose { Level::DEBUG } else { Level::INFO };
 
-    // Initialize tracing
-    let subscriber = FmtSubscriber::builder().with_max_level(log_level).finish();
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    // Log filter strategies
+    let filter = if verbose {
+        EnvFilter::new("line_sticker_dw=debug")
+    } else {
+        EnvFilter::new("line_sticker_dw=info")
+    };
+
+    tracing_subscriber::fmt().with_env_filter(filter).init();
 
     // Positional arguments
     let id: u64 = match args.free_from_str() {
