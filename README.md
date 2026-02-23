@@ -39,6 +39,12 @@ line-sticker-dw <set_id> [base_folder] [options]
 - `-v, --verbose`: Enables debug logging to see more details about the download process.
 - `-h, --help`: Prints usage information.
 
+### Install
+
+```bash
+cargo install --path .
+```
+
 ### Example
 
 ```bash
