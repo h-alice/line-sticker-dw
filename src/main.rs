@@ -1,4 +1,5 @@
 use async_compat::Compat;
+use clap::Parser;
 use futures::future::join_all;
 use std::path::PathBuf;
 use tracing::{error, info};
@@ -6,30 +7,42 @@ use tracing_subscriber::EnvFilter;
 
 mod sticker;
 
-// A default help message.
-const HELP: &str = "\
-Usage: line-sticker-dw <set_id> [base_folder] [-v|--verbose]
+/// Download LINE sticker sets or emoji packs to your local machine.
+#[derive(Parser, Debug)]
+#[command(
+    name = "line-sticker-dw",
+    version,
+    about = "Download LINE sticker sets or emoji packs",
+    long_about = None
+)]
+struct Args {
+    /// ID of the sticker set or emoji pack to download
+    set_id: String,
 
-Arguments:
-  <set_id>       The ID of the sticker set to download
-  [base_folder]  Optional base folder to save stickers (defaults to <set_id>)
+    /// Optional output folder (defaults to <set_id>)
+    base_folder: Option<PathBuf>,
 
-Options:
-  -v, --verbose  Set log level to debug
-  -h, --help     Print help
-";
+    /// Download an emoji pack instead of a normal sticker set
+    #[arg(long)]
+    emoji: bool,
+
+    /// Set log level to debug
+    #[arg(short, long)]
+    verbose: bool,
+}
 
 /// Fetches all stickers from a set and downloads them to a folder.
 async fn download_set(
-    id: u64,
+    id: &str,
     base_folder: Option<PathBuf>,
+    emoji_mode: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let base_path = base_folder.unwrap_or_else(|| PathBuf::from(id.to_string()));
+    let base_path = base_folder.unwrap_or_else(|| PathBuf::from(id));
 
     info!("Downloading sticker set {} to {}", id, base_path.display());
 
     // Get all sticker entries
-    let stickers = sticker::fetch_stickers(id).await?;
+    let stickers = sticker::fetch_stickers(id, emoji_mode).await?;
     info!(
         "Found {} stickers for set {}. Starting download...",
         stickers.len(),
@@ -66,19 +79,10 @@ async fn download_set(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = pico_args::Arguments::from_env();
-
-    // Print help message
-    if args.contains(["-h", "--help"]) {
-        print!("{}", HELP);
-        return Ok(());
-    }
-
-    // Verbose flag
-    let verbose = args.contains(["-v", "--verbose"]);
+    let args = Args::parse();
 
     // Log filter strategies
-    let filter = if verbose {
+    let filter = if args.verbose {
         EnvFilter::new("line_sticker_dw=debug")
     } else {
         EnvFilter::new("line_sticker_dw=info")
@@ -86,22 +90,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
-    // Positional arguments
-    let id: u64 = match args.free_from_str() {
-        Ok(id) => id,
-        Err(_) => {
-            error!("Missing or invalid <set_id> argument.");
-            print!("{}", HELP);
-            std::process::exit(87);
-        }
-    };
-
-    // If err, means not set, use OK to cast to None
-    let base_folder: Option<PathBuf> = args.free_from_str().ok();
-
     // Run the async workflow
     smol::block_on(Compat::new(async {
-        if let Err(e) = download_set(id, base_folder).await {
+        if let Err(e) = download_set(&args.set_id, args.base_folder, args.emoji).await {
             error!("Failed to download sticker set: {}", e);
             std::process::exit(1);
         }

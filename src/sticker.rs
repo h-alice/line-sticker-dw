@@ -45,8 +45,11 @@ pub struct StickerPreview {
     pub id: String,
     pub static_url: String,
     pub fallback_static_url: String,
+    #[serde(default)]
     pub animation_url: String,
+    #[serde(default)]
     pub popup_url: String,
+    #[serde(default)]
     pub sound_url: String,
 }
 
@@ -93,8 +96,12 @@ impl StickerPreview {
 /// # Returns
 ///
 /// The URL of the sticker page
-pub fn sticker_page_url(id: u64) -> String {
-    format!("https://store.line.me/stickershop/product/{}", id)
+pub fn sticker_page_url(id: &str, emoji_mode: bool) -> String {
+    if emoji_mode {
+        format!("https://store.line.me/emojishop/product/{}", id)
+    } else {
+        format!("https://store.line.me/stickershop/product/{}", id)
+    }
 }
 
 /// Parses the stickers from the sticker page
@@ -137,9 +144,12 @@ pub fn parse_stickers(html: &str) -> Result<Vec<StickerPreview>, StickerError> {
 /// # Returns
 ///
 /// The stickers of the sticker page
-pub async fn fetch_stickers(id: u64) -> Result<Vec<StickerPreview>, StickerError> {
+pub async fn fetch_stickers(
+    id: &str,
+    emoji_mode: bool,
+) -> Result<Vec<StickerPreview>, StickerError> {
     debug!("Downloading sticker store page for set {}", id);
-    let response = reqwest::get(sticker_page_url(id)).await?;
+    let response = reqwest::get(sticker_page_url(id, emoji_mode)).await?;
     let text = response.text().await?;
     debug!("Store page downloaded for set {}", id);
     let parsed_stickers = parse_stickers(&text)?;
